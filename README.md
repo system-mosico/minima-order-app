@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Minima Order
 
-## Getting Started
+モバイルオーダー／セルフ注文アプリ
 
-First, run the development server:
+## 概要
+
+飲食店の顧客（テーブル利用者）向けのモバイルオーダーアプリです。スマートフォンのブラウザで完結し、QRコードを読み取ってテーブル番号を認識し、紙メニューの番号を入力して注文できます。
+
+## 機能
+
+- **QRコード読み取り**: テーブルに設置されたQRコードを読み取ってテーブル番号を取得
+- **人数入力**: 利用人数を入力
+- **メニュー番号入力**: 紙メニューの番号を入力して商品を選択
+- **カート機能**: 複数商品をまとめて注文可能、数量調整・削除機能
+- **追加注文**: 注文後でも追加注文可能
+- **会計機能**: バーコードを表示してレジで提示
+
+## 技術スタック
+
+- **フレームワーク**: Next.js 16.0.1 (Pages Router)
+- **言語**: TypeScript
+- **スタイリング**: Tailwind CSS v4
+- **データベース**: Firebase Firestore
+- **QRコード**: html5-qrcode
+- **バーコード**: react-barcode
+
+## セットアップ
+
+### 必要な環境
+
+- Node.js 18以上
+- npm または yarn
+
+### インストール
+
+```bash
+npm install
+```
+
+### 開発サーバーの起動
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ブラウザで [http://localhost:3000](http://localhost:3000) を開いてください。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### ビルド
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## プロジェクト構造
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── pages/
+│   ├── index.tsx          # ホームページ（QRコード読み取り）
+│   ├── people.tsx         # 人数入力ページ
+│   ├── menu.tsx           # メニュー選択・カートページ
+│   ├── checkout.tsx       # 会計ページ（バーコード表示）
+│   ├── _app.tsx           # アプリケーションのルートコンポーネント
+│   ├── _document.tsx      # カスタムドキュメント
+│   └── api/
+│       ├── order.ts       # 注文API
+│       └── table.ts       # テーブルAPI
+├── firebase/
+│   └── config.ts          # Firebase設定
+└── styles/
+    └── globals.css         # グローバルスタイル
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Firebase設定
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Firebaseの設定は `src/firebase/config.ts` にあります。本番環境では環境変数を使用することを推奨します。
 
-## Deploy on Vercel
+## デプロイ
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Firebase Hosting
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build
+npm run deploy
+```
+
+## ライセンス
+
+ISC
