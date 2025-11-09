@@ -7,7 +7,7 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "deploy": "npm run build && firebase deploy"
+    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules"
   },
   "keywords": [],
   "author": "",

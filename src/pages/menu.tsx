@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { db } from "../firebase/config";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 // メニューアイテムの定義（実際の運用ではFirebaseから取得）
 const menuItems: { [key: number]: { id: number; name: string; price: number } } = {
@@ -99,25 +101,22 @@ export default function Menu() {
 
     setLoading(true);
     try {
-      const response = await fetch("/api/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cart: cart.map((item) => ({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-          })),
-          tableNumber: Number(tableNumber),
-          people: people,
-          total: getTotal(),
-        }),
-      });
+      const orderData = {
+        cart: cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        tableNumber: Number(tableNumber),
+        people: people,
+        total: getTotal(),
+        status: "pending",
+        createdAt: serverTimestamp(),
+      };
 
-      if (!response.ok) throw new Error("注文に失敗しました");
+      const docRef = await addDoc(collection(db, "orders"), orderData);
       
-      const data = await response.json();
       setOrderPlaced(true);
       setCart([]);
       
@@ -125,8 +124,9 @@ export default function Menu() {
       setTimeout(() => {
         setOrderPlaced(false);
       }, 3000);
-    } catch (error) {
-      alert("注文の送信に失敗しました");
+    } catch (error: any) {
+      console.error("注文エラー:", error);
+      alert("注文の送信に失敗しました: " + (error.message || "Unknown error"));
     } finally {
       setLoading(false);
     }

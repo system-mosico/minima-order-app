@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import dynamic from "next/dynamic";
-
-const Barcode = dynamic(() => import("react-barcode"), { ssr: false });
 
 export default function Checkout() {
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   const [barcodeValue, setBarcodeValue] = useState<string>("");
+  const [BarcodeComponent, setBarcodeComponent] = useState<any>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    // クライアントサイドでのみバーコードコンポーネントを読み込む
+    if (typeof window !== "undefined") {
+      import("react-barcode").then((mod) => {
+        setBarcodeComponent(() => mod.default);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const { table } = router.query;
@@ -35,9 +42,9 @@ export default function Checkout() {
           <p className="text-center text-sm text-gray-600 mb-4">
             レジでこのバーコードを提示してください
           </p>
-          {barcodeValue && (
+          {barcodeValue && BarcodeComponent && (
             <div className="flex justify-center">
-              <Barcode
+              <BarcodeComponent
                 value={barcodeValue}
                 format="CODE128"
                 width={2}
@@ -45,6 +52,11 @@ export default function Checkout() {
                 displayValue={true}
                 fontSize={16}
               />
+            </div>
+          )}
+          {barcodeValue && !BarcodeComponent && (
+            <div className="flex justify-center p-4">
+              <p className="text-gray-600">バーコードを読み込み中...</p>
             </div>
           )}
           {tableNumber && (
