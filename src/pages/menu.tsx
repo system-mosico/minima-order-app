@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { db } from "../firebase/config";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import Header from "../components/Header";
+import NumberInput from "../components/NumberInput";
+import TenKey from "../components/TenKey";
+import FooterNav from "../components/FooterNav";
 
 // メニューアイテムの定義（実際の運用ではFirebaseから取得）
 const menuItems: { [key: number]: { id: number; name: string; price: number } } = {
@@ -31,6 +35,7 @@ export default function Menu() {
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   const [people, setPeople] = useState<number | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("add");
   const router = useRouter();
 
   useEffect(() => {
@@ -120,7 +125,6 @@ export default function Menu() {
       setOrderPlaced(true);
       setCart([]);
       
-      // 注文確定後、追加注文可能にする
       setTimeout(() => {
         setOrderPlaced(false);
       }, 3000);
@@ -132,129 +136,142 @@ export default function Menu() {
     }
   };
 
-  const handleCheckout = () => {
-    router.push(`/checkout?table=${tableNumber}`);
+  const handleDelete = () => {
+    setMenuNumber((prev) => prev.slice(0, -1));
+  };
+
+  const handleNumberEnter = () => {
+    if (menuNumber) {
+      addToCart();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pb-24">
-      <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-4">
-          <h1 className="text-2xl font-bold text-center mb-2 text-gray-800">メニュー</h1>
-          {tableNumber && people && (
-            <p className="text-center text-gray-600 text-sm">
-              テーブル: {tableNumber} | 人数: {people}人
-            </p>
-          )}
-        </div>
+    <div className="min-h-screen bg-white flex flex-col pb-20">
+      <Header title="番号を入力してください" />
+      
+      {/* ロゴエリア */}
+      <div className="text-center py-6">
+        <h1 className="text-2xl font-bold text-cyan-600">Minima Order</h1>
+        {tableNumber && people && (
+          <p className="text-xs text-gray-600 mt-1">テーブル: {tableNumber} | 人数: {people}人</p>
+        )}
+      </div>
 
-        {/* メニュー番号入力 */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-4">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">メニュー番号を入力</h2>
-          <div className="flex gap-2">
-            <input
-              type="number"
+      {/* タブ切り替え表示 */}
+      {activeTab === "add" && (
+        <>
+          {/* 番号入力ボックス */}
+          <NumberInput value={menuNumber} placeholder="メニュー番号" />
+
+          {/* 選択されたメニュー表示 */}
+          {menuNumber && menuItems[Number(menuNumber)] && (
+            <div className="px-4 pb-2">
+              <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
+                <p className="font-semibold text-gray-800 text-center">
+                  {menuItems[Number(menuNumber)].name}
+                </p>
+                <p className="text-gray-600 text-center text-sm">
+                  ¥{menuItems[Number(menuNumber)].price.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* テンキー */}
+          <div className="flex-1">
+            <TenKey
               value={menuNumber}
-              onChange={(e) => setMenuNumber(e.target.value)}
-              onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                if (e.key === "Enter") {
-                  addToCart();
-                }
-              }}
-              placeholder="例: 1"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-xl text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              onChange={setMenuNumber}
+              onDelete={handleDelete}
+              maxLength={3}
             />
+          </div>
+
+          {/* 追加ボタン */}
+          <div className="px-4 pb-4">
             <button
-              onClick={addToCart}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors"
+              onClick={handleNumberEnter}
+              disabled={!menuNumber || menuNumber.length === 0}
+              className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-300 disabled:text-gray-500 text-white font-bold py-4 rounded-lg text-lg transition-colors"
             >
               追加
             </button>
           </div>
-          {menuNumber && menuItems[Number(menuNumber)] && (
-            <div className="mt-4 p-3 bg-indigo-50 rounded-lg">
-              <p className="font-semibold text-gray-800">
-                {menuItems[Number(menuNumber)].name}
-              </p>
-              <p className="text-gray-600">¥{menuItems[Number(menuNumber)].price.toLocaleString()}</p>
-            </div>
-          )}
-        </div>
+        </>
+      )}
 
-        {/* カート */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-4">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">カート</h2>
+      {activeTab === "cart" && (
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          <h2 className="text-xl font-bold text-cyan-600 mb-4 text-center">注文かご</h2>
           {cart.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">カートは空です</p>
+            <div className="text-center py-12 text-gray-500">
+              <p>カートは空です</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {cart.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className="bg-white border border-gray-200 rounded-lg p-4"
                 >
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-800">{item.name}</p>
-                    <p className="text-sm text-gray-600">¥{item.price.toLocaleString()}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateQuantity(item.id, -1)}
-                      className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full font-bold"
-                    >
-                      −
-                    </button>
-                    <span className="w-8 text-center font-semibold">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(item.id, 1)}
-                      className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full font-bold"
-                    >
-                      ＋
-                    </button>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded"
-                    >
-                      削除
-                    </button>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800">{item.name}</p>
+                      <p className="text-sm text-gray-600">¥{item.price.toLocaleString()}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateQuantity(item.id, -1)}
+                        className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full font-bold text-cyan-600"
+                      >
+                        −
+                      </button>
+                      <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(item.id, 1)}
+                        className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full font-bold text-cyan-600"
+                      >
+                        ＋
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded"
+                      >
+                        削除
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
               <div className="pt-3 border-t border-gray-200 mt-3">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold text-gray-800">合計</span>
-                  <span className="text-2xl font-bold text-indigo-600">
+                  <span className="text-2xl font-bold text-cyan-600">
                     ¥{getTotal().toLocaleString()}
                   </span>
                 </div>
               </div>
+              <button
+                onClick={handleOrder}
+                disabled={loading || cart.length === 0 || orderPlaced}
+                className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg mt-4"
+              >
+                {loading
+                  ? "送信中..."
+                  : orderPlaced
+                  ? "注文確定済み"
+                  : "注文確定"}
+              </button>
             </div>
           )}
         </div>
-
-        {/* 注文確定ボタン */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200">
-          <div className="max-w-md mx-auto space-y-2">
-            <button
-              onClick={handleOrder}
-              disabled={loading || cart.length === 0 || orderPlaced}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors text-lg"
-            >
-              {loading
-                ? "送信中..."
-                : orderPlaced
-                ? "注文確定済み"
-                : "注文確定"}
-            </button>
-            <button
-              onClick={handleCheckout}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-            >
-              会計する
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
+      
+      {/* フッターナビゲーション */}
+      <FooterNav activeTab={activeTab} tableNumber={tableNumber} onTabChange={setActiveTab} />
     </div>
   );
 }
+
+
