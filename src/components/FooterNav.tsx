@@ -22,7 +22,7 @@ export default function FooterNav({ activeTab, tableNumber, onTabChange, cartCou
   const handleNavClick = (item: { id: string; label: string; path: string }) => {
     if (item.id === "checkout" && tableNumber) {
       router.push(`${item.path}?table=${tableNumber}`);
-    } else if (item.id === "add" || item.id === "cart") {
+    } else if (item.id === "add" || item.id === "cart" || item.id === "history") {
       // メニューページ内でタブ切り替え
       if (router.pathname === "/menu" && onTabChange) {
         onTabChange(item.id);

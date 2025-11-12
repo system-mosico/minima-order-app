@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { db } from "../firebase/config";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from "firebase/firestore";
 import Header from "../components/Header";
 import NumberInput from "../components/NumberInput";
 import TenKey from "../components/TenKey";
@@ -28,6 +28,23 @@ interface CartItem {
   quantity: number;
 }
 
+interface OrderItem {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface Order {
+  id: string;
+  cart: OrderItem[];
+  tableNumber: number;
+  people: number;
+  total: number;
+  status: string;
+  createdAt: any;
+}
+
 export default function Menu() {
   const [menuNumber, setMenuNumber] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -39,6 +56,8 @@ export default function Menu() {
   const [selectedItem, setSelectedItem] = useState<{ id: number; name: string; price: number } | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [orderHistory, setOrderHistory] = useState<Order[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -50,6 +69,45 @@ export default function Menu() {
       setPeople(Number(peopleParam));
     }
   }, [router.query]);
+
+  useEffect(() => {
+    if (activeTab === "history" && tableNumber) {
+      fetchOrderHistory();
+    }
+  }, [activeTab, tableNumber]);
+
+  const fetchOrderHistory = async () => {
+    if (!tableNumber) return;
+    
+    setLoadingHistory(true);
+    try {
+      // インデックス不要: whereのみで取得し、クライアント側でソート
+      const q = query(
+        collection(db, "orders"),
+        where("tableNumber", "==", Number(tableNumber))
+      );
+      const querySnapshot = await getDocs(q);
+      const orders: Order[] = [];
+      querySnapshot.forEach((doc) => {
+        orders.push({
+          id: doc.id,
+          ...doc.data(),
+        } as Order);
+      });
+      // クライアント側でソート（createdAtがTimestampの場合）
+      orders.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+        const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+        return bTime - aTime; // 降順（新しい順）
+      });
+      setOrderHistory(orders);
+    } catch (error: any) {
+      console.error("注文履歴取得エラー:", error);
+      alert("注文履歴の取得に失敗しました: " + (error.message || "Unknown error"));
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const addToCart = () => {
     const num = Number(menuNumber);
@@ -356,6 +414,93 @@ export default function Menu() {
                       : "注文"}
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {activeTab === "history" && (
+        <>
+          <Header title="注文履歴" />
+          
+          <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-100 pb-20">
+            {loadingHistory ? (
+              <div className="text-center py-12 text-gray-500">
+                <p>読み込み中...</p>
+              </div>
+            ) : orderHistory.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <p>注文履歴がありません</p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-w-md mx-auto">
+                {orderHistory.map((order) => (
+                  <div
+                    key={order.id}
+                    className="bg-white border border-gray-300 rounded-lg p-4"
+                  >
+                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+                      <div className="text-sm text-gray-600">
+                        {order.createdAt?.toDate?.() ? (
+                          <>
+                            {order.createdAt.toDate().toLocaleDateString("ja-JP", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                            })}
+                            <br />
+                            {order.createdAt.toDate().toLocaleTimeString("ja-JP", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </>
+                        ) : (
+                          "日時不明"
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          order.status === "pending"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : order.status === "completed"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}>
+                          {order.status === "pending"
+                            ? "準備中"
+                            : order.status === "completed"
+                            ? "完了"
+                            : order.status}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 mb-3">
+                      {order.cart.map((item, index) => (
+                        <div key={index} className="flex justify-between items-center text-sm">
+                          <span className="text-gray-800">
+                            {item.name} × {item.quantity}
+                          </span>
+                          <span className="text-gray-600">
+                            ¥{(item.price * item.quantity).toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="pt-2 border-t border-gray-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">
+                          {order.cart.length}点
+                        </span>
+                        <span className="text-lg font-bold text-gray-800">
+                          合計 ¥{order.total.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
