@@ -13,14 +13,21 @@ export default function People() {
     const { table } = router.query;
     if (table && typeof table === "string") {
       setTableNumber(table);
+    } else if (router.isReady) {
+      // テーブル番号が取得できない場合（QRコードが読み取られていない場合）
+      alert("テーブルのQRコードを読み取ってアクセスしてください");
+      router.push("/");
     }
-  }, [router.query]);
+  }, [router.query, router.isReady]);
 
   const handleSubmit = () => {
     if (!people || !/^\d+$/.test(people) || Number(people) < 1 || Number(people) > 20) {
+      alert("1〜20人の範囲で入力してください");
       return;
     }
     if (!tableNumber) {
+      alert("テーブル番号が取得できませんでした。QRコードを読み取ってアクセスしてください。");
+      router.push("/");
       return;
     }
     router.push(`/menu?table=${tableNumber}&people=${people}`);

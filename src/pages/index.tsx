@@ -1,55 +1,28 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/router";
-import Header from "../components/Header";
-import NumberInput from "../components/NumberInput";
-import TenKey from "../components/TenKey";
 
 export default function Home() {
-  const [tableNumber, setTableNumber] = useState("");
   const router = useRouter();
 
-  const handleSubmit = () => {
-    if (!tableNumber || !/^\d+$/.test(tableNumber)) {
-      return;
+  useEffect(() => {
+    // URLパラメータからテーブル番号を取得
+    const { table } = router.query;
+    
+    if (table && typeof table === "string") {
+      // テーブル番号が取得できたら人数入力ページへ自動遷移
+      router.push(`/people?table=${table}`);
+    } else if (router.isReady) {
+      // テーブル番号が取得できない場合（QRコードが読み取られていない場合）
+      // エラーメッセージを表示
+      alert("テーブルのQRコードを読み取ってアクセスしてください");
     }
-    router.push(`/people?table=${tableNumber}`);
-  };
-
-  const handleDelete = () => {
-    setTableNumber((prev) => prev.slice(0, -1));
-  };
+  }, [router.query, router.isReady]);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <Header title="番号を入力してください" />
-      
-      {/* ロゴエリア */}
-      <div className="text-center py-8">
-        <h1 className="text-3xl font-bold text-cyan-600">Minima Order</h1>
-      </div>
-
-      {/* 番号入力ボックス */}
-      <NumberInput value={tableNumber} placeholder="テーブル番号" />
-
-      {/* テンキー */}
-      <div className="flex-1">
-        <TenKey
-          value={tableNumber}
-          onChange={setTableNumber}
-          onDelete={handleDelete}
-          maxLength={3}
-        />
-      </div>
-
-      {/* 次へボタン */}
-      <div className="px-4 pb-6">
-        <button
-          onClick={handleSubmit}
-          disabled={!tableNumber || tableNumber.length === 0}
-          className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-300 disabled:text-gray-500 text-white font-bold py-4 rounded-lg text-lg transition-colors"
-        >
-          次へ
-        </button>
+    <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-cyan-600 mb-4">Minima Order</h1>
+        <p className="text-gray-600">読み込み中...</p>
       </div>
     </div>
   );
