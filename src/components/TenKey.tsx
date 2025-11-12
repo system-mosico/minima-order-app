@@ -27,7 +27,7 @@ export default function TenKey({ value, onChange, onDelete, maxLength = 10 }: Te
         <button
           key={num}
           onClick={() => handleNumberClick(num.toString())}
-          className="bg-white border border-gray-200 rounded-lg py-6 text-3xl font-semibold text-cyan-600 active:bg-gray-50 active:shadow-inner transition-all"
+          className="bg-white border border-gray-300 rounded-lg py-3 px-8 text-3xl font-semibold text-green-600 active:bg-gray-50 active:shadow-inner transition-all"
         >
           {num}
         </button>
@@ -37,14 +37,14 @@ export default function TenKey({ value, onChange, onDelete, maxLength = 10 }: Te
       <div className="col-span-2">
         <button
           onClick={() => handleNumberClick("0")}
-          className="w-full bg-white border border-gray-200 rounded-lg py-6 text-3xl font-semibold text-cyan-600 active:bg-gray-50 active:shadow-inner transition-all"
+          className="w-full bg-white border border-gray-300 rounded-lg py-3 px-8 text-3xl font-semibold text-green-600 active:bg-gray-50 active:shadow-inner transition-all"
         >
           0
         </button>
       </div>
       <button
         onClick={handleDelete}
-        className="bg-white border border-gray-200 rounded-lg py-6 text-lg font-semibold text-cyan-600 active:bg-gray-50 active:shadow-inner transition-all"
+        className="bg-green-600 text-white border border-green-600 rounded-lg py-3 px-4 text-lg font-semibold active:bg-green-700 active:shadow-inner transition-all"
       >
         削除
       </button>

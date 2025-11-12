@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Header from "../components/Header";
-import NumberInput from "../components/NumberInput";
-import TenKey from "../components/TenKey";
+import FooterNav from "../components/FooterNav";
 
 export default function People() {
-  const [people, setPeople] = useState("");
+  const [selectedPeople, setSelectedPeople] = useState<number | null>(null);
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   const router = useRouter();
 
@@ -14,64 +13,46 @@ export default function People() {
     if (table && typeof table === "string") {
       setTableNumber(table);
     } else if (router.isReady) {
-      // テーブル番号が取得できない場合（QRコードが読み取られていない場合）
-      alert("テーブルのQRコードを読み取ってアクセスしてください");
-      router.push("/");
+      // テスト用: テーブル番号が取得できない場合、デフォルトでテーブル1を使用
+      setTableNumber("1");
     }
   }, [router.query, router.isReady]);
 
-  const handleSubmit = () => {
-    if (!people || !/^\d+$/.test(people) || Number(people) < 1 || Number(people) > 20) {
-      alert("1〜20人の範囲で入力してください");
-      return;
+  const handlePeopleSelect = (num: number) => {
+    setSelectedPeople(num);
+    if (tableNumber) {
+      router.push(`/menu?table=${tableNumber}&people=${num}`);
     }
-    if (!tableNumber) {
-      alert("テーブル番号が取得できませんでした。QRコードを読み取ってアクセスしてください。");
-      router.push("/");
-      return;
-    }
-    router.push(`/menu?table=${tableNumber}&people=${people}`);
-  };
-
-  const handleDelete = () => {
-    setPeople((prev) => prev.slice(0, -1));
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <Header title="番号を入力してください" />
+    <div className="min-h-screen bg-white flex flex-col pb-20">
+      <Header title="何名様(全員)でご利用ですか?" />
       
-      {/* ロゴエリア */}
-      <div className="text-center py-8">
-        <h1 className="text-3xl font-bold text-cyan-600">Minima Order</h1>
-        {tableNumber && (
-          <p className="text-sm text-gray-600 mt-2">テーブル番号: {tableNumber}</p>
-        )}
+      {/* 人数選択ボタン */}
+      <div className="flex-1 px-4 py-8">
+        <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+            <button
+              key={num}
+              onClick={() => handlePeopleSelect(num)}
+              className="bg-gray-100 border border-gray-300 rounded-lg py-6 text-xl font-semibold text-green-600 active:bg-gray-200 transition-colors"
+            >
+              {num === 9 ? (
+                <div>
+                  <div>9人</div>
+                  <div className="text-sm">以上</div>
+                </div>
+              ) : (
+                `${num}人`
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* 番号入力ボックス */}
-      <NumberInput value={people} placeholder="利用人数" />
-
-      {/* テンキー */}
-      <div className="flex-1">
-        <TenKey
-          value={people}
-          onChange={setPeople}
-          onDelete={handleDelete}
-          maxLength={2}
-        />
-      </div>
-
-      {/* 次へボタン */}
-      <div className="px-4 pb-6">
-        <button
-          onClick={handleSubmit}
-          disabled={!people || people.length === 0 || Number(people) < 1 || Number(people) > 20}
-          className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-300 disabled:text-gray-500 text-white font-bold py-4 rounded-lg text-lg transition-colors"
-        >
-          次へ
-        </button>
-      </div>
+      {/* フッターナビゲーション */}
+      <FooterNav tableNumber={tableNumber} />
     </div>
   );
 }

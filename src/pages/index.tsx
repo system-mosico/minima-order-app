@@ -12,9 +12,9 @@ export default function Home() {
       // テーブル番号が取得できたら人数入力ページへ自動遷移
       router.push(`/people?table=${table}`);
     } else if (router.isReady) {
-      // テーブル番号が取得できない場合（QRコードが読み取られていない場合）
-      // エラーメッセージを表示
-      alert("テーブルのQRコードを読み取ってアクセスしてください");
+      // テスト用: テーブル番号が取得できない場合、デフォルトでテーブル1として人数入力画面へ
+      // 本番環境では、QRコードが読み取られていない場合はエラーを表示
+      router.push(`/people?table=1`);
     }
   }, [router.query, router.isReady]);
 
