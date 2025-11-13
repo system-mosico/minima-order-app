@@ -56,6 +56,7 @@ export default function Menu() {
   const [selectedItem, setSelectedItem] = useState<{ id: number; name: string; price: number } | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const router = useRouter();
@@ -75,6 +76,13 @@ export default function Menu() {
       fetchOrderHistory();
     }
   }, [activeTab, tableNumber]);
+
+  // タブが切り替わった時に注文確定メッセージを非表示にする
+  useEffect(() => {
+    if (activeTab !== "cart" && orderPlaced) {
+      setOrderPlaced(false);
+    }
+  }, [activeTab]);
 
   const fetchOrderHistory = async () => {
     if (!tableNumber) return;
@@ -137,13 +145,11 @@ export default function Menu() {
 
   const updateQuantity = (id: number, delta: number) => {
     setCart(
-      cart
-        .map((item: CartItem) =>
-          item.id === id
-            ? { ...item, quantity: Math.max(0, item.quantity + delta) }
-            : item
-        )
-        .filter((item: CartItem) => item.quantity > 0)
+      cart.map((item: CartItem) =>
+        item.id === id
+          ? { ...item, quantity: Math.max(0, item.quantity + delta) }
+          : item
+      )
     );
   };
 
@@ -156,7 +162,9 @@ export default function Menu() {
   };
 
   const handleOrder = async () => {
-    if (cart.length === 0) {
+    // 数量が0より大きいアイテムがあるかチェック
+    const hasValidItems = cart.some((item) => item.quantity > 0);
+    if (!hasValidItems) {
       alert("カートが空です");
       return;
     }
@@ -172,8 +180,17 @@ export default function Menu() {
     setShowConfirmDialog(false);
     setLoading(true);
     try {
+      // 数量が0より大きいアイテムのみを注文に含める
+      const validCartItems = cart.filter((item) => item.quantity > 0);
+      
+      // 有効なアイテムがない場合は注文を送信しない（メッセージは表示しない）
+      if (validCartItems.length === 0) {
+        setLoading(false);
+        return;
+      }
+
       const orderData = {
-        cart: cart.map((item) => ({
+        cart: validCartItems.map((item) => ({
           id: item.id,
           name: item.name,
           price: item.price,
@@ -190,10 +207,6 @@ export default function Menu() {
       
       setOrderPlaced(true);
       setCart([]);
-      
-      setTimeout(() => {
-        setOrderPlaced(false);
-      }, 3000);
     } catch (error: any) {
       console.error("注文エラー:", error);
       alert("注文の送信に失敗しました: " + (error.message || "Unknown error"));
@@ -388,7 +401,9 @@ export default function Menu() {
                 
                 <div className="pt-3 border-t-2 border-gray-300 mt-3">
                   <div className="flex justify-between items-center text-lg">
-                    <span className="font-semibold text-gray-800">{cart.length}点</span>
+                    <span className="font-semibold text-gray-800">
+                      {cart.filter((item) => item.quantity > 0).length}点
+                    </span>
                     <span className="font-bold text-gray-800">
                       合計 {getTotal().toLocaleString()}円(税込)
                     </span>
@@ -404,7 +419,7 @@ export default function Menu() {
                   </button>
                   <button
                     onClick={handleOrder}
-                    disabled={loading || cart.length === 0 || orderPlaced}
+                    disabled={loading || !cart.some((item) => item.quantity > 0) || orderPlaced}
                     className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-bold py-4 rounded-lg text-lg transition-colors"
                   >
                     {loading
@@ -422,9 +437,17 @@ export default function Menu() {
 
       {activeTab === "history" && (
         <>
-          <Header title="注文履歴" />
+          <div className="sticky top-0 z-50">
+            <Header title="お帰りの際は[お会計へ進む]をタップ" />
+            {/* 注文リストヘッダー */}
+            <div className="sticky top-[56px] z-40 bg-gray-200 px-4 py-2 grid grid-cols-3 gap-2 text-sm font-semibold text-gray-700 border-b border-gray-300">
+              <div>メニュー名</div>
+              <div className="text-center">数量</div>
+              <div className="text-right">価格</div>
+            </div>
+          </div>
           
-          <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-100 pb-20">
+          <div className="flex-1 overflow-y-auto bg-gray-100 pb-20">
             {loadingHistory ? (
               <div className="text-center py-12 text-gray-500">
                 <p>読み込み中...</p>
@@ -434,73 +457,46 @@ export default function Menu() {
                 <p>注文履歴がありません</p>
               </div>
             ) : (
-              <div className="space-y-4 max-w-md mx-auto">
-                {orderHistory.map((order) => (
-                  <div
-                    key={order.id}
-                    className="bg-white border border-gray-300 rounded-lg p-4"
-                  >
-                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
-                      <div className="text-sm text-gray-600">
-                        {order.createdAt?.toDate?.() ? (
-                          <>
-                            {order.createdAt.toDate().toLocaleDateString("ja-JP", {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                            })}
-                            <br />
-                            {order.createdAt.toDate().toLocaleTimeString("ja-JP", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </>
-                        ) : (
-                          "日時不明"
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          order.status === "pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : order.status === "completed"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}>
-                          {order.status === "pending"
-                            ? "準備中"
-                            : order.status === "completed"
-                            ? "完了"
-                            : order.status}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2 mb-3">
-                      {order.cart.map((item, index) => (
-                        <div key={index} className="flex justify-between items-center text-sm">
-                          <span className="text-gray-800">
-                            {item.name} × {item.quantity}
-                          </span>
-                          <span className="text-gray-600">
-                            ¥{(item.price * item.quantity).toLocaleString()}
-                          </span>
+              <div className="max-w-md mx-auto bg-white">
+                
+                {/* メニューアイテムリスト（すべての注文履歴をまとめて表示） */}
+                <div className="divide-y divide-gray-200">
+                  {orderHistory.flatMap((order) =>
+                    order.cart.map((item, index) => (
+                      <div key={`${order.id}-${index}`} className="px-4 py-3 grid grid-cols-3 gap-2 text-sm">
+                        <div className="text-gray-800">{item.name}</div>
+                        <div className="text-center text-gray-800">{item.quantity}</div>
+                        <div className="text-right text-gray-800">
+                          ¥{(item.price * item.quantity).toLocaleString()}
                         </div>
-                      ))}
-                    </div>
-                    
-                    <div className="pt-2 border-t border-gray-200">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">
-                          {order.cart.length}点
-                        </span>
-                        <span className="text-lg font-bold text-gray-800">
-                          合計 ¥{order.total.toLocaleString()}
-                        </span>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    ))
+                  )}
+                </div>
+                
+                {/* 注文サマリー（全体の合計） */}
+                <div className="px-4 py-4 border-t-2 border-gray-300 flex justify-between items-center">
+                  <span className="text-lg font-semibold text-gray-800">
+                    {orderHistory.reduce((sum, order) => 
+                      sum + order.cart.reduce((itemSum, item) => itemSum + item.quantity, 0), 0
+                    )}点
+                  </span>
+                  <span className="text-lg font-bold text-gray-800">
+                    合計 {orderHistory.reduce((sum, order) => sum + order.total, 0).toLocaleString()}円(税込)
+                  </span>
+                </div>
+                
+                {/* お会計へ進むボタン */}
+                <div className="px-4 pb-4">
+                  <button
+                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-lg text-lg transition-colors"
+                    onClick={() => {
+                      setShowCheckoutDialog(true);
+                    }}
+                  >
+                    お会計へ進む
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -527,6 +523,49 @@ export default function Menu() {
               >
                 はい
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 注文確定メッセージ */}
+      {orderPlaced && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg p-8 max-w-md mx-4 w-full shadow-2xl border-2 border-green-600 pointer-events-auto">
+            <p className="text-center text-2xl font-bold text-green-600">
+              ご注文ありがとうございます
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* お会計確認ダイアログ */}
+      {showCheckoutDialog && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 w-full shadow-2xl border-2 border-green-600 pointer-events-auto">
+            <p className="text-center text-lg font-semibold text-gray-800 mb-6">
+              お会計に進みますか？
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowCheckoutDialog(false)}
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition-colors"
+              >
+                いいえ
+              </button>
+              <button
+                onClick={() => {
+                  setShowCheckoutDialog(false);
+                  if (tableNumber) {
+                    router.push(`/checkout?table=${tableNumber}`);
+                  } else {
+                    alert("テーブル番号が取得できませんでした");
+                  }
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              >
+                はい
+      </button>
             </div>
           </div>
         </div>

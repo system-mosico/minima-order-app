@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import Header from "../components/Header";
+import FooterNav from "../components/FooterNav";
 
 export default function Checkout() {
   const [tableNumber, setTableNumber] = useState<string | null>(null);
@@ -26,32 +28,44 @@ export default function Checkout() {
     }
   }, [router.query]);
 
-  const handleBack = () => {
-    router.back();
+  const handleDetails = () => {
+    // 明細表示機能は今後実装
+    alert("明細表示機能は今後実装予定です");
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">会計</h1>
-        {tableNumber && (
-          <p className="text-center text-gray-600 mb-8">テーブル番号: {tableNumber}</p>
-        )}
+    <div className="min-h-screen bg-white flex flex-col pb-20">
+      <Header title="この画面をレジでお知らせください" />
 
-        <div className="bg-white p-6 rounded-lg border-2 border-gray-200 mb-6">
-          <p className="text-center text-sm text-gray-600 mb-4">
-            レジでこのバーコードを提示してください
-          </p>
+      {/* ロゴエリア（上部） */}
+      <div className="py-4 px-4 min-h-[140px] flex flex-col justify-center">
+        <div className="text-center">
+          <div className="inline-block border-2 border-green-600 rounded-full px-8 py-6">
+            <h1 className="text-2xl font-bold text-green-600">Minima Order</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* メインコンテンツ */}
+      <div className="flex-1 flex flex-col items-center px-4 py-8">
+        {/* バーコード（ロゴとボタンの間の中央） */}
+        <div className="w-full max-w-xs mt-auto mb-auto">
           {barcodeValue && BarcodeComponent && (
-            <div className="flex justify-center">
-              <BarcodeComponent
-                value={barcodeValue}
-                format="CODE128"
-                width={2}
-                height={80}
-                displayValue={true}
-                fontSize={16}
-              />
+            <div className="flex flex-col items-center">
+              <div className="bg-white p-4 rounded-lg transform scale-75">
+                <BarcodeComponent
+                  value={barcodeValue}
+                  format="CODE128"
+                  width={2}
+                  height={80}
+                  displayValue={true}
+                  fontSize={16}
+                />
+              </div>
+              {/* バーコードの下の数字 */}
+              <p className="mt-2 text-lg font-mono text-gray-800 text-center">
+                {barcodeValue.replace(/[^0-9]/g, "")}
+              </p>
             </div>
           )}
           {barcodeValue && !BarcodeComponent && (
@@ -59,34 +73,24 @@ export default function Checkout() {
               <p className="text-gray-600">バーコードを読み込み中...</p>
             </div>
           )}
-          {tableNumber && (
-            <p className="text-center mt-4 text-lg font-semibold text-gray-800">
-              テーブル番号: {tableNumber}
-            </p>
-          )}
         </div>
 
-        <div className="space-y-4">
-          <button
-            onClick={handleBack}
-            className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-4 px-6 rounded-lg transition-colors"
-          >
-            戻る
-          </button>
-          <button
-            onClick={() => router.push("/")}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors"
-          >
-            新しい注文を開始
-          </button>
-        </div>
+        {/* 明細を表示するボタン */}
+        <button
+          onClick={handleDetails}
+          className="w-full max-w-xs bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors mb-4"
+        >
+          明細を表示する
+        </button>
 
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-blue-800 text-center">
-            💡 バーコードをレジスタッフに提示すると、会計が完了します
-          </p>
-        </div>
+        {/* 注釈 */}
+        <p className="text-center text-xs text-gray-600">
+          ※この画面は、お会計後に自動的に閉じます。
+        </p>
       </div>
+
+      {/* フッターナビゲーション */}
+      <FooterNav tableNumber={tableNumber} />
     </div>
   );
 }

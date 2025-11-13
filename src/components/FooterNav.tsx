@@ -20,8 +20,13 @@ export default function FooterNav({ activeTab, tableNumber, onTabChange, cartCou
   ];
 
   const handleNavClick = (item: { id: string; label: string; path: string }) => {
-    if (item.id === "checkout" && tableNumber) {
-      router.push(`${item.path}?table=${tableNumber}`);
+    if (item.id === "checkout") {
+      if (tableNumber) {
+        router.push(`${item.path}?table=${tableNumber}`);
+      } else {
+        // テーブル番号が取得できない場合でも会計画面に遷移（デフォルトでテーブル1を使用）
+        router.push(`${item.path}?table=1`);
+      }
     } else if (item.id === "add" || item.id === "cart" || item.id === "history") {
       // メニューページ内でタブ切り替え
       if (router.pathname === "/menu" && onTabChange) {
