@@ -14,9 +14,7 @@
   "license": "ISC",
   "dependencies": {
     "firebase": "^12.5.0",
-    "html5-qrcode": "^2.3.8",
     "next": "16.0.1",
-    "qrcode.react": "^4.2.0",
     "react": "19.2.0",
     "react-barcode": "^1.6.1",
     "react-dom": "19.2.0"
