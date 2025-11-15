@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { db } from "../firebase/config";
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
-import { CartItem, Order, MenuItem } from "../types";
+import { CartItem, Order, MenuItem, ORDER_STATUS } from "../types";
 import { MENU_ITEMS } from "../constants/menuItems";
 import { sortOrdersByDate } from "../utils/orderUtils";
 import Header from "../components/Header";
@@ -72,9 +72,12 @@ export default function Menu() {
       const querySnapshot = await getDocs(q);
       const orders: Order[] = [];
       querySnapshot.forEach((doc) => {
+        const data = doc.data();
         orders.push({
           id: doc.id,
-          ...doc.data(),
+          ...data,
+          // statusが存在しない場合はデフォルト値を設定（既存データとの互換性）
+          status: data.status || ORDER_STATUS.PENDING,
         } as Order);
       });
       setOrderHistory(sortOrdersByDate(orders));
@@ -168,7 +171,7 @@ export default function Menu() {
         tableNumber: Number(tableNumber),
         people: people,
         total: getTotal,
-        status: "pending",
+        status: ORDER_STATUS.PENDING,
         createdAt: serverTimestamp(),
       };
 

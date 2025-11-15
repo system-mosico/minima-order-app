@@ -3,12 +3,23 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // ordersコレクションのルール
     match /orders/{orderId} {
-      // 誰でも読み取り可能（店舗側で注文を確認するため）
+      // 読み取り：誰でも可能（Order側とAdmin側の両方で注文を確認するため）
       allow read: if true;
-      // 誰でも書き込み可能（顧客が注文を送信するため）
+      
+      // 作成：誰でも可能（Order側で注文を送信するため）
       allow create: if true;
-      // 更新と削除は認証が必要（将来的に店舗側のみが更新できるようにする）
-      allow update, delete: if false;
+      
+      // 更新：誰でも可能（プロトタイプ段階）
+      // Admin側でstatusなどのフィールドを更新するため
+      // 本番環境では認証を追加して、Admin側のみ更新可能にすることを推奨
+      // 例: allow update: if request.auth != null && request.auth.token.admin == true;
+      allow update: if true;
+      
+      // 削除：誰でも可能（プロトタイプ段階）
+      // Admin側で注文を削除するため
+      // 本番環境では認証を追加して、Admin側のみ削除可能にすることを推奨
+      // 例: allow delete: if request.auth != null && request.auth.token.admin == true;
+      allow delete: if true;
     }
   }
 }
