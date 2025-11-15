@@ -1,6 +1,7 @@
 // Firebase SDK の必要な関数だけをインポート
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // Firebase Web アプリの設定情報
 const firebaseConfig = {
@@ -18,5 +19,8 @@ const app = initializeApp(firebaseConfig);
 // Firestore インスタンスを作成
 const db = getFirestore(app);
 
+// Storage インスタンスを作成
+const storage = getStorage(app);
+
 // エクスポート
-export { app, db };
+export { app, db, storage };

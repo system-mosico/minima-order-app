@@ -32,7 +32,14 @@ export default function FooterNav({ activeTab, tableNumber, onTabChange, cartCou
       if (router.pathname === "/menu" && onTabChange) {
         onTabChange(item.id);
       } else if (router.pathname !== "/menu") {
-        router.push(item.path);
+        // 会計ページから戻る場合など、tableNumberがある場合はURLパラメータとして渡す
+        // タブIDもURLパラメータとして渡す
+        const params = new URLSearchParams();
+        if (tableNumber) {
+          params.set("table", tableNumber);
+        }
+        params.set("tab", item.id);
+        router.push(`${item.path}?${params.toString()}`);
       }
     } else {
       // その他の機能は今後実装
@@ -44,7 +51,8 @@ export default function FooterNav({ activeTab, tableNumber, onTabChange, cartCou
     <div className="bg-green-600 px-2 py-3 fixed bottom-0 left-0 right-0 z-50">
       <div className="flex justify-around items-center">
         {navItems.map((item) => {
-          const isActive = activeTab === item.id;
+          // 会計ページにいる時も「会計する」ボタンをアクティブ表示
+          const isActive = activeTab === item.id || (router.pathname === "/checkout" && item.id === "checkout");
           const isCart = item.id === "cart";
           return (
             <button

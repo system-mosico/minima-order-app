@@ -52,6 +52,7 @@ export default function Menu() {
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   const [people, setPeople] = useState<number | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>("add");
   const [selectedItem, setSelectedItem] = useState<{ id: number; name: string; price: number } | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
@@ -59,7 +60,16 @@ export default function Menu() {
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const router = useRouter();
+
+  // router.isReadyがtrueになった時点で、URLパラメータからタブを設定（最初に実行）
+  useEffect(() => {
+    if (router.isReady) {
+      const { tab } = router.query;
+      if (tab && typeof tab === "string" && (tab === "add" || tab === "cart" || tab === "history")) {
+        setActiveTab(tab);
+      }
+    }
+  }, [router.isReady, router.query.tab]);
 
   useEffect(() => {
     const { table, people: peopleParam } = router.query;
