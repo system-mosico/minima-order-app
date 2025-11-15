@@ -1,49 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { db } from "../firebase/config";
-import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
+import { CartItem, Order, MenuItem } from "../types";
+import { MENU_ITEMS } from "../constants/menuItems";
+import { sortOrdersByDate } from "../utils/orderUtils";
 import Header from "../components/Header";
 import NumberInput from "../components/NumberInput";
 import TenKey from "../components/TenKey";
 import FooterNav from "../components/FooterNav";
-
-// メニューアイテムの定義（実際の運用ではFirebaseから取得）
-const menuItems: { [key: number]: { id: number; name: string; price: number } } = {
-  1: { id: 1, name: "マルゲリータピザ", price: 1200 },
-  2: { id: 2, name: "シーザーサラダ", price: 800 },
-  3: { id: 3, name: "カルボナーラ", price: 1100 },
-  4: { id: 4, name: "ミートパスタ", price: 1300 },
-  5: { id: 5, name: "ハンバーグ", price: 1500 },
-  6: { id: 6, name: "オムライス", price: 900 },
-  7: { id: 7, name: "コーラ", price: 300 },
-  8: { id: 8, name: "オレンジジュース", price: 300 },
-  9: { id: 9, name: "ビール", price: 500 },
-  10: { id: 10, name: "アイスクリーム", price: 400 },
-};
-
-interface CartItem {
-  id: number;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-interface OrderItem {
-  id: number;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-interface Order {
-  id: string;
-  cart: OrderItem[];
-  tableNumber: number;
-  people: number;
-  total: number;
-  status: string;
-  createdAt: any;
-}
+import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function Menu() {
   const [menuNumber, setMenuNumber] = useState("");
@@ -94,12 +60,11 @@ export default function Menu() {
     }
   }, [activeTab]);
 
-  const fetchOrderHistory = async () => {
+  const fetchOrderHistory = useCallback(async () => {
     if (!tableNumber) return;
     
     setLoadingHistory(true);
     try {
-      // インデックス不要: whereのみで取得し、クライアント側でソート
       const q = query(
         collection(db, "orders"),
         where("tableNumber", "==", Number(tableNumber))
@@ -112,30 +77,24 @@ export default function Menu() {
           ...doc.data(),
         } as Order);
       });
-      // クライアント側でソート（createdAtがTimestampの場合）
-      orders.sort((a, b) => {
-        const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
-        const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
-        return bTime - aTime; // 降順（新しい順）
-      });
-      setOrderHistory(orders);
+      setOrderHistory(sortOrdersByDate(orders));
     } catch (error: any) {
       console.error("注文履歴取得エラー:", error);
       alert("注文履歴の取得に失敗しました: " + (error.message || "Unknown error"));
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [tableNumber]);
 
-  const addToCart = () => {
+  const addToCart = useCallback(() => {
     const num = Number(menuNumber);
-    if (!num || !menuItems[num]) {
+    if (!num || !MENU_ITEMS[num]) {
       alert("メニュー番号が見つかりません");
       setMenuNumber("");
       return;
     }
 
-    const item = menuItems[num];
+    const item = MENU_ITEMS[num];
     const existingItem = cart.find((cartItem) => cartItem.id === item.id);
 
     if (existingItem) {
@@ -151,7 +110,7 @@ export default function Menu() {
     }
 
     setMenuNumber("");
-  };
+  }, [menuNumber, cart]);
 
   const updateQuantity = (id: number, delta: number) => {
     setCart(
@@ -167,9 +126,9 @@ export default function Menu() {
     setCart(cart.filter((item: CartItem) => item.id !== id));
   };
 
-  const getTotal = () => {
+  const getTotal = useMemo(() => {
     return cart.reduce((sum: number, item: CartItem) => sum + item.price * item.quantity, 0);
-  };
+  }, [cart]);
 
   const handleOrder = async () => {
     // 数量が0より大きいアイテムがあるかチェック
@@ -208,7 +167,7 @@ export default function Menu() {
         })),
         tableNumber: Number(tableNumber),
         people: people,
-        total: getTotal(),
+        total: getTotal,
         status: "pending",
         createdAt: serverTimestamp(),
       };
@@ -235,9 +194,9 @@ export default function Menu() {
     }
   };
 
-  const getCartItemCount = () => {
+  const getCartItemCount = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
-  };
+  }, [cart]);
 
   return (
     <div className="min-h-screen bg-white flex flex-col pb-20">
@@ -248,17 +207,17 @@ export default function Menu() {
           
           {/* ロゴエリア / 商品名表示エリア（高さ固定） */}
           <div className="py-4 px-4 min-h-[140px] flex flex-col justify-center">
-            {menuNumber && menuItems[Number(menuNumber)] ? (
+            {menuNumber && MENU_ITEMS[Number(menuNumber)] ? (
               <div className="space-y-3">
                 <div className="bg-green-100 px-4 py-3 rounded-lg">
                   <p className="text-xl font-bold text-green-600 text-left">
-                    {menuItems[Number(menuNumber)].name}
+                    {MENU_ITEMS[Number(menuNumber)].name}
                   </p>
                 </div>
                 <div className="flex justify-end">
                   <button
                     onClick={() => {
-                      const item = menuItems[Number(menuNumber)];
+                      const item = MENU_ITEMS[Number(menuNumber)];
                       setSelectedItem(item);
                       setQuantity(1);
                       setActiveTab("quantity");
@@ -415,7 +374,7 @@ export default function Menu() {
                       {cart.filter((item) => item.quantity > 0).length}点
                     </span>
                     <span className="font-bold text-gray-800">
-                      合計 {getTotal().toLocaleString()}円(税込)
+                      合計 {getTotal.toLocaleString()}円(税込)
                     </span>
                   </div>
                 </div>
@@ -513,29 +472,12 @@ export default function Menu() {
         </>
       )}
 
-      {/* 注文確認ダイアログ */}
       {showConfirmDialog && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div className="bg-white rounded-lg p-6 max-w-md mx-4 w-full shadow-2xl border-2 border-green-600 pointer-events-auto">
-            <p className="text-center text-lg font-semibold text-gray-800 mb-6">
-              ご注文はすべて入力済みですか？送信します。
-            </p>
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={() => setShowConfirmDialog(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition-colors"
-              >
-                いいえ
-              </button>
-              <button
-                onClick={confirmOrder}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-              >
-                はい
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          message="ご注文はすべて入力済みですか？送信します。"
+          onConfirm={confirmOrder}
+          onCancel={() => setShowConfirmDialog(false)}
+        />
       )}
 
       {/* 注文確定メッセージ */}
@@ -549,36 +491,19 @@ export default function Menu() {
         </div>
       )}
 
-      {/* お会計確認ダイアログ */}
       {showCheckoutDialog && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div className="bg-white rounded-lg p-6 max-w-md mx-4 w-full shadow-2xl border-2 border-green-600 pointer-events-auto">
-            <p className="text-center text-lg font-semibold text-gray-800 mb-6">
-              お会計に進みますか？
-            </p>
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={() => setShowCheckoutDialog(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition-colors"
-              >
-                いいえ
-              </button>
-              <button
-                onClick={() => {
-                  setShowCheckoutDialog(false);
-                  if (tableNumber) {
-                    router.push(`/checkout?table=${tableNumber}`);
-                  } else {
-                    alert("テーブル番号が取得できませんでした");
-                  }
-                }}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-              >
-                はい
-      </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          message="お会計に進みますか？"
+          onConfirm={() => {
+            setShowCheckoutDialog(false);
+            if (tableNumber) {
+              router.push(`/checkout?table=${tableNumber}`);
+            } else {
+              alert("テーブル番号が取得できませんでした");
+            }
+          }}
+          onCancel={() => setShowCheckoutDialog(false)}
+        />
       )}
       
       {/* フッターナビゲーション */}
@@ -586,7 +511,7 @@ export default function Menu() {
         activeTab={activeTab} 
         tableNumber={tableNumber} 
         onTabChange={setActiveTab}
-        cartCount={getCartItemCount()}
+        cartCount={getCartItemCount}
       />
     </div>
   );
