@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { db } from "../firebase/config";
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, orderBy, doc, getDoc } from "firebase/firestore";
 import { CartItem, Order, MenuItem, ORDER_STATUS } from "../types";
-import { MENU_ITEMS } from "../constants/menuItems";
 import { sortOrdersByDate } from "../utils/orderUtils";
 import Header from "../components/Header";
 import NumberInput from "../components/NumberInput";
@@ -11,12 +10,23 @@ import TenKey from "../components/TenKey";
 import FooterNav from "../components/FooterNav";
 import ConfirmDialog from "../components/ConfirmDialog";
 
+// Firestoreから取得したメニューアイテムの型
+type FirestoreMenuItem = {
+  id: string;
+  ownerUid: string;
+  itemNumber: string;
+  name: string;
+  price: number;
+};
+
 export default function Menu() {
   const [menuNumber, setMenuNumber] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   const [people, setPeople] = useState<number | null>(null);
+  const [ownerUid, setOwnerUid] = useState<string | null>(null);
+  const [tableId, setTableId] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>("add");
@@ -26,6 +36,8 @@ export default function Menu() {
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [menuItems, setMenuItems] = useState<Map<string, FirestoreMenuItem>>(new Map());
+  const [loadingMenus, setLoadingMenus] = useState(true);
 
   // router.isReadyがtrueになった時点で、URLパラメータからタブを設定（最初に実行）
   useEffect(() => {
@@ -37,15 +49,100 @@ export default function Menu() {
     }
   }, [router.isReady, router.query.tab]);
 
+  // URLパラメータからownerUid、tableId、table、peopleを取得
   useEffect(() => {
-    const { table, people: peopleParam } = router.query;
-    if (table && typeof table === "string") {
-      setTableNumber(table);
+    if (!router.isReady) return;
+
+    const { ownerUid: ownerUidParam, tableId: tableIdParam, table, people: peopleParam } = router.query;
+    
+    // URLパラメータから取得、なければセッションストレージから取得
+    const currentOwnerUid = (ownerUidParam && typeof ownerUidParam === "string") 
+      ? ownerUidParam 
+      : (typeof window !== "undefined" ? sessionStorage.getItem("ownerUid") : null);
+    
+    const currentTableId = (tableIdParam && typeof tableIdParam === "string") 
+      ? tableIdParam 
+      : (typeof window !== "undefined" ? sessionStorage.getItem("tableId") : null);
+    
+    const currentTableNumber = (table && typeof table === "string") 
+      ? table 
+      : (typeof window !== "undefined" ? sessionStorage.getItem("tableNumber") : null);
+
+    if (currentOwnerUid) {
+      setOwnerUid(currentOwnerUid);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("ownerUid", currentOwnerUid);
+      }
     }
+    
+    if (currentTableId) {
+      setTableId(currentTableId);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("tableId", currentTableId);
+      }
+    }
+    
+    if (currentTableNumber) {
+      setTableNumber(currentTableNumber);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("tableNumber", currentTableNumber);
+      }
+    }
+    
+    // peopleはURLパラメータから取得、なければセッションストレージから取得
+    let currentPeople: number | null = null;
     if (peopleParam && typeof peopleParam === "string") {
-      setPeople(Number(peopleParam));
+      currentPeople = Number(peopleParam);
+    } else if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("people");
+      currentPeople = stored ? Number(stored) : null;
     }
-  }, [router.query]);
+    
+    if (currentPeople) {
+      setPeople(currentPeople);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("people", currentPeople.toString());
+      }
+    }
+  }, [router.isReady, router.query]);
+
+  // Firestoreからメニューを取得
+  useEffect(() => {
+    if (!ownerUid) return;
+    
+    const fetchMenus = async () => {
+      setLoadingMenus(true);
+      try {
+        const q = query(
+          collection(db, "menus"),
+          where("ownerUid", "==", ownerUid),
+          orderBy("itemNumber")
+        );
+        const snapshot = await getDocs(q);
+        const itemsMap = new Map<string, FirestoreMenuItem>();
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          itemsMap.set(data.itemNumber, {
+            id: doc.id,
+            ownerUid: data.ownerUid,
+            itemNumber: data.itemNumber,
+            name: data.name,
+            price: data.price,
+          });
+        });
+        
+        setMenuItems(itemsMap);
+      } catch (error: any) {
+        console.error("メニュー取得エラー:", error);
+        alert("メニューの取得に失敗しました: " + (error.message || "Unknown error"));
+      } finally {
+        setLoadingMenus(false);
+      }
+    };
+    
+    fetchMenus();
+  }, [ownerUid]);
 
   useEffect(() => {
     if (activeTab === "history" && tableNumber) {
@@ -61,43 +158,81 @@ export default function Menu() {
   }, [activeTab]);
 
   const fetchOrderHistory = useCallback(async () => {
-    if (!tableNumber) return;
+    if (!tableNumber || !ownerUid) return;
+    
+    // セッションIDを取得
+    const sessionId = typeof window !== "undefined" ? sessionStorage.getItem("sessionId") : null;
     
     setLoadingHistory(true);
     try {
       const q = query(
         collection(db, "orders"),
-        where("tableNumber", "==", Number(tableNumber))
+        where("ownerUid", "==", ownerUid),
+        where("tableNumber", "==", tableNumber),
+        orderBy("createdAt", "desc")
       );
       const querySnapshot = await getDocs(q);
       const orders: Order[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
+        
+        // セッションIDでフィルタリング（現在のセッションの注文のみ表示）
+        if (sessionId && data.sessionId !== sessionId) {
+          return; // セッションIDが一致しない場合はスキップ
+        }
+        // セッションIDがない古い注文は、セッションIDがnullの場合のみ表示（後方互換性）
+        if (!sessionId && data.sessionId != null) {
+          return; // セッションIDが設定されているが、現在のセッションIDがない場合はスキップ
+        }
+        
+        // Minima_Admin側の形式に対応（itemsまたはcartの両方に対応）
+        const items = data.items || data.cart || [];
         orders.push({
           id: doc.id,
-          ...data,
-          // statusが存在しない場合はデフォルト値を設定（既存データとの互換性）
+          cart: items.map((item: any) => ({
+            id: item.id || Number(item.itemNumber) || 0,
+            name: item.name,
+            price: item.price,
+            quantity: item.qty || item.quantity || 0,
+          })),
+          tableNumber: typeof data.tableNumber === "string" ? Number(data.tableNumber) : data.tableNumber,
+          people: data.people || 0,
+          total: data.total || 0,
           status: data.status || ORDER_STATUS.PENDING,
+          createdAt: data.createdAt,
         } as Order);
       });
       setOrderHistory(sortOrdersByDate(orders));
     } catch (error: any) {
       console.error("注文履歴取得エラー:", error);
-      alert("注文履歴の取得に失敗しました: " + (error.message || "Unknown error"));
+      // インデックスエラーの場合は警告のみ表示
+      if (error.code === "failed-precondition") {
+        console.warn("Firestoreインデックスの作成が必要です");
+      } else {
+        alert("注文履歴の取得に失敗しました: " + (error.message || "Unknown error"));
+      }
     } finally {
       setLoadingHistory(false);
     }
-  }, [tableNumber]);
+  }, [tableNumber, ownerUid]);
 
   const addToCart = useCallback(() => {
-    const num = Number(menuNumber);
-    if (!num || !MENU_ITEMS[num]) {
+    const itemNumber = menuNumber.trim();
+    if (!itemNumber || !menuItems.has(itemNumber)) {
       alert("メニュー番号が見つかりません");
       setMenuNumber("");
       return;
     }
 
-    const item = MENU_ITEMS[num];
+    const firestoreItem = menuItems.get(itemNumber)!;
+    // CartItemのidはitemNumberを数値に変換したもの（既存の型との互換性のため）
+    const item: CartItem = {
+      id: Number(itemNumber),
+      name: firestoreItem.name,
+      price: firestoreItem.price,
+      quantity: 0, // 後で設定
+    };
+    
     const existingItem = cart.find((cartItem) => cartItem.id === item.id);
 
     if (existingItem) {
@@ -113,7 +248,7 @@ export default function Menu() {
     }
 
     setMenuNumber("");
-  }, [menuNumber, cart]);
+  }, [menuNumber, cart, menuItems]);
 
   const updateQuantity = (id: number, delta: number) => {
     setCart(
@@ -152,6 +287,50 @@ export default function Menu() {
     setShowConfirmDialog(false);
     setLoading(true);
     try {
+      // 必須情報のチェック
+      if (!ownerUid) {
+        alert("店舗情報が取得できませんでした");
+        setLoading(false);
+        return;
+      }
+      if (!tableId || !tableNumber) {
+        alert("テーブル情報が取得できませんでした");
+        setLoading(false);
+        return;
+      }
+
+      // セッションIDの検証
+      const storedSessionId = typeof window !== "undefined" ? sessionStorage.getItem("sessionId") : null;
+      if (storedSessionId) {
+        try {
+          const tableRef = doc(db, "tables", tableId);
+          const tableSnap = await getDoc(tableRef);
+          
+          if (tableSnap.exists()) {
+            const tableData = tableSnap.data();
+            const currentSessionId = tableData.currentSessionId;
+            
+            if (currentSessionId !== storedSessionId) {
+              alert("このセッションは終了しました。ページを再読み込みしてください。");
+              setLoading(false);
+              return;
+            }
+          } else {
+            alert("テーブル情報が見つかりませんでした");
+            setLoading(false);
+            return;
+          }
+        } catch (error: any) {
+          console.error("セッション検証エラー:", error);
+          alert("セッションの検証に失敗しました。ページを再読み込みしてください。");
+          setLoading(false);
+          return;
+        }
+      } else {
+        // セッションIDが保存されていない場合は警告のみ（後方互換性のため）
+        console.warn("セッションIDが保存されていません");
+      }
+      
       // 数量が0より大きいアイテムのみを注文に含める
       const validCartItems = cart.filter((item) => item.quantity > 0);
       
@@ -161,18 +340,28 @@ export default function Menu() {
         return;
       }
 
+      // セッションIDを取得
+      const sessionId = typeof window !== "undefined" ? sessionStorage.getItem("sessionId") : null;
+
+      // Minima_Admin側の形式に合わせた注文データ構造
       const orderData = {
-        cart: validCartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-        })),
-        tableNumber: Number(tableNumber),
-        people: people,
+        ownerUid: ownerUid,
+        tableId: tableId,
+        tableNumber: tableNumber, // 文字列として保存
+        sessionId: sessionId || null, // セッションIDを保存
+        items: validCartItems.map((item) => {
+          // itemNumberを取得（menuItemsから）
+          const itemNumber = menuItems.get(item.id.toString())?.itemNumber || item.id.toString();
+          return {
+            name: item.name,
+            price: item.price,
+            qty: item.quantity,
+            itemNumber: itemNumber,
+          };
+        }),
         total: getTotal,
-        status: ORDER_STATUS.PENDING,
-        createdAt: serverTimestamp(),
+        status: "accepted", // Minima_Admin側の期待値
+        createdAt: Date.now(), // 数値タイムスタンプ
       };
 
       const docRef = await addDoc(collection(db, "orders"), orderData);
@@ -210,20 +399,31 @@ export default function Menu() {
           
           {/* ロゴエリア / 商品名表示エリア（高さ固定） */}
           <div className="py-4 px-4 min-h-[140px] flex flex-col justify-center">
-            {menuNumber && MENU_ITEMS[Number(menuNumber)] ? (
+            {loadingMenus ? (
+              <div className="text-center">
+                <p className="text-gray-600">メニューを読み込み中...</p>
+              </div>
+            ) : menuNumber && menuItems.has(menuNumber.trim()) ? (
               <div className="space-y-3">
                 <div className="bg-green-100 px-4 py-3 rounded-lg">
                   <p className="text-xl font-bold text-green-600 text-left">
-                    {MENU_ITEMS[Number(menuNumber)].name}
+                    {menuItems.get(menuNumber.trim())?.name}
                   </p>
                 </div>
                 <div className="flex justify-end">
                   <button
                     onClick={() => {
-                      const item = MENU_ITEMS[Number(menuNumber)];
-                      setSelectedItem(item);
-                      setQuantity(1);
-                      setActiveTab("quantity");
+                      const firestoreItem = menuItems.get(menuNumber.trim());
+                      if (firestoreItem) {
+                        const item = {
+                          id: Number(firestoreItem.itemNumber),
+                          name: firestoreItem.name,
+                          price: firestoreItem.price,
+                        };
+                        setSelectedItem(item);
+                        setQuantity(1);
+                        setActiveTab("quantity");
+                      }
                     }}
                     className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
                   >
@@ -282,7 +482,7 @@ export default function Menu() {
                 <span className="text-4xl font-bold text-green-600">{quantity}</span>
               </div>
               <button
-                onClick={() => setQuantity(Math.min(9, quantity + 1))}
+                onClick={() => setQuantity(Math.min(99, quantity + 1))}
                 className="w-16 h-16 bg-green-600 text-white rounded-lg font-bold text-3xl flex items-center justify-center active:bg-green-700 transition-colors"
               >
                 ＋

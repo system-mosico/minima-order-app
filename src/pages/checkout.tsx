@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { db } from "../firebase/config";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { OrderItem, Order } from "../types";
 import { sortOrdersByDate, timestampToDate } from "../utils/orderUtils";
 import pdfMake, { loadJapaneseFont } from "../utils/pdfFonts";
@@ -11,6 +11,7 @@ import FooterNav from "../components/FooterNav";
 
 export default function Checkout() {
   const [tableNumber, setTableNumber] = useState<string | null>(null);
+  const [ownerUid, setOwnerUid] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
@@ -19,19 +20,77 @@ export default function Checkout() {
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const router = useRouter();
 
-  const fetchOrders = useCallback(async (table: string) => {
+  // URLパラメータからownerUid、tableId、tableを取得
+  useEffect(() => {
+    if (!router.isReady) return;
+
+    const { ownerUid: ownerUidParam, tableId: tableIdParam, table } = router.query;
+    
+    // URLパラメータから取得、なければセッションストレージから取得
+    const currentOwnerUid = (ownerUidParam && typeof ownerUidParam === "string") 
+      ? ownerUidParam 
+      : (typeof window !== "undefined" ? sessionStorage.getItem("ownerUid") : null);
+    
+    const currentTableNumber = (table && typeof table === "string") 
+      ? table 
+      : (typeof window !== "undefined" ? sessionStorage.getItem("tableNumber") : null);
+
+    if (currentOwnerUid) {
+      setOwnerUid(currentOwnerUid);
+    }
+    
+    if (currentTableNumber) {
+      setTableNumber(currentTableNumber);
+    }
+  }, [router.isReady, router.query]);
+
+  const fetchOrders = useCallback(async (table: string, uid: string | null) => {
+    if (!uid) {
+      console.error("ownerUidが取得できません");
+      setLoading(false);
+      return;
+    }
+
+    // セッションIDを取得
+    const sessionId = typeof window !== "undefined" ? sessionStorage.getItem("sessionId") : null;
+
     setLoading(true);
     try {
       const q = query(
         collection(db, "orders"),
-        where("tableNumber", "==", Number(table))
+        where("ownerUid", "==", uid),
+        where("tableNumber", "==", table), // 文字列として比較
+        orderBy("createdAt", "desc")
       );
       const querySnapshot = await getDocs(q);
       const ordersData: Order[] = [];
       querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        
+        // セッションIDでフィルタリング（現在のセッションの注文のみ表示）
+        if (sessionId && data.sessionId !== sessionId) {
+          return; // セッションIDが一致しない場合はスキップ
+        }
+        // セッションIDがない古い注文は、セッションIDがnullの場合のみ表示（後方互換性）
+        if (!sessionId && data.sessionId != null) {
+          return; // セッションIDが設定されているが、現在のセッションIDがない場合はスキップ
+        }
+        
+        // Minima_Admin側の形式に対応（itemsまたはcartの両方に対応）
+        const items = data.items || data.cart || [];
         ordersData.push({
           id: doc.id,
-          ...doc.data(),
+          cart: items.map((item: any) => ({
+            id: item.id || Number(item.itemNumber) || 0,
+            name: item.name,
+            price: item.price,
+            quantity: item.qty || item.quantity || 0,
+          })),
+          tableNumber: typeof data.tableNumber === "string" ? Number(data.tableNumber) : data.tableNumber,
+          people: data.people || 0,
+          total: data.total || 0,
+          status: data.status || "pending",
+          createdAt: data.createdAt,
         } as Order);
       });
       const sortedOrders = sortOrdersByDate(ordersData);
@@ -42,19 +101,23 @@ export default function Checkout() {
       }
     } catch (error: any) {
       console.error("注文取得エラー:", error);
-      alert("注文データの取得に失敗しました: " + (error.message || "Unknown error"));
+      // インデックスエラーの場合は警告のみ表示
+      if (error.code === "failed-precondition") {
+        console.warn("Firestoreインデックスの作成が必要です");
+        alert("注文データの取得に失敗しました。インデックスの作成が必要です。");
+      } else {
+        alert("注文データの取得に失敗しました: " + (error.message || "Unknown error"));
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const { table } = router.query;
-    if (table && typeof table === "string") {
-      setTableNumber(table);
-      fetchOrders(table);
+    if (tableNumber && ownerUid) {
+      fetchOrders(tableNumber, ownerUid);
     }
-  }, [router.query, fetchOrders]);
+  }, [tableNumber, ownerUid, fetchOrders]);
 
   const handlePaymentCompleted = async () => {
     setPaymentCompleted(true);

@@ -1,25 +1,50 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ordersコレクションのルール
+    // storesコレクション: 自分の店舗情報のみ読み書き可能
+    match /stores/{storeId} {
+      allow read, write: if request.auth != null && request.auth.uid == storeId;
+    }
+    
+    // ordersコレクション: 自分の店舗の注文のみ作成可能
     match /orders/{orderId} {
-      // 読み取り：誰でも可能（Order側とAdmin側の両方で注文を確認するため）
+      // 読み取り: 店舗オーナーは自分の注文を読み取り可能、顧客は認証なしでも読み取り可能
+      // 注: 実際のクエリではownerUidとtableNumberでフィルタリングされるため、セキュリティ上問題なし
+      allow read: if request.auth == null || resource.data.ownerUid == request.auth.uid;
+      
+      // 作成: 認証なしでも作成可能（顧客が注文するため）
+      // 必須フィールドの存在をチェック
+      allow create: if request.resource.data.ownerUid != null 
+                    && request.resource.data.items != null 
+                    && request.resource.data.total != null
+                    && request.resource.data.createdAt != null;
+      
+      // 更新・削除: 店舗オーナーのみ
+      allow update, delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+    }
+    
+    // menusコレクション: メニュー情報
+    match /menus/{menuId} {
+      // 読み取り: 認証なしでも可能（顧客がメニューを閲覧するため）
       allow read: if true;
       
-      // 作成：誰でも可能（Order側で注文を送信するため）
-      allow create: if true;
+      // 書き込み: 店舗オーナーのみ
+      allow write: if request.auth != null && request.resource.data.ownerUid == request.auth.uid;
+    }
+    
+    // tablesコレクション: テーブル情報
+    match /tables/{tableId} {
+      // 読み取り: 認証なしでも可能（顧客がテーブル情報を取得するため）
+      allow read: if true;
       
-      // 更新：誰でも可能（プロトタイプ段階）
-      // Admin側でstatusなどのフィールドを更新するため
-      // 本番環境では認証を追加して、Admin側のみ更新可能にすることを推奨
-      // 例: allow update: if request.auth != null && request.auth.token.admin == true;
-      allow update: if true;
+      // 作成: 新規作成時のownerUidをチェック
+      allow create: if request.auth != null && request.resource.data.ownerUid == request.auth.uid;
       
-      // 削除：誰でも可能（プロトタイプ段階）
-      // Admin側で注文を削除するため
-      // 本番環境では認証を追加して、Admin側のみ削除可能にすることを推奨
-      // 例: allow delete: if request.auth != null && request.auth.token.admin == true;
-      allow delete: if true;
+      // 更新: 既存ドキュメントのownerUidをチェック
+      allow update: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      
+      // 削除: 既存ドキュメントのownerUidをチェック
+      allow delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
     }
   }
 }

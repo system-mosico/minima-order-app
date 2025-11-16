@@ -30,12 +30,30 @@
 
 - Node.js 18以上
 - npm または yarn
+- Firebaseプロジェクト（Minima_Adminと同じプロジェクトを使用）
 
 ### インストール
 
 ```bash
 npm install
 ```
+
+### 環境変数の設定
+
+Minima_Adminと同じFirebaseプロジェクトを使用するため、`.env.local`ファイルを作成してFirebase設定を追加してください。
+
+プロジェクトルートに`.env.local`ファイルを作成し、以下の内容を記入してください：
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyAgeHreGY29lH8uri73GTaFa9UOdv3xTig
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=minima-admin.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=minima-admin
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=minima-admin.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=896370773667
+NEXT_PUBLIC_FIREBASE_APP_ID=1:896370773667:web:85c502b5939b3e7a06b916
+```
+
+**注意**: これらの値はMinima_Admin側の`.env.local`と同じ値を使用してください。
 
 ### 開発サーバーの起動
 
@@ -84,7 +102,13 @@ src/
 
 ## Firebase設定
 
-Firebaseの設定は `src/firebase/config.ts` にあります。本番環境では環境変数を使用することを推奨します。
+Firebaseの設定は `src/firebase/config.ts` にあります。環境変数から読み込むようになっています。
+
+**重要**: Minima_Adminと同じFirebaseプロジェクト（`minima-admin`）を使用する必要があります。これにより、以下の連携が可能になります：
+
+- Minima_Adminで登録したメニューがMinima_Orderに反映される
+- Minima_Orderで作成した注文がMinima_Adminの注文管理に反映される
+- Minima_Adminで生成したQRコードからMinima_Orderにアクセスできる
 
 ## デプロイ
 
